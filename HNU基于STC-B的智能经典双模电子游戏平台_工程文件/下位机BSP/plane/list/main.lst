@@ -1,0 +1,391 @@
+C51 COMPILER V9.51   MAIN                                                                  09/07/2023 15:04:15 PAGE 1   
+
+
+C51 COMPILER V9.51, COMPILATION OF MODULE MAIN
+OBJECT MODULE PLACED IN .\output\main.obj
+COMPILER INVOKED BY: E:\keil\C51\BIN\C51.EXE source\main.c BROWSE INCDIR(.\inc) DEBUG OBJECTEXTEND PRINT(.\list\main.lst
+                    -) TABS(2) OBJECT(.\output\main.obj)
+
+line level    source
+
+   1          #include "STC15F2K60S2.H"        //±ØÐë¡£
+   2          #include "sys.H"                 //±ØÐë¡£
+   3          #include "displayer.H" 
+   4          #include "adc.h"
+   5          #include "key.h"
+   6          #include "stdio.h"
+   7          #include "stdlib.h"
+   8          #include "beep.h"
+   9          #include "uart1.h" 
+  10          #include "music.H"
+  11          
+  12          code unsigned long SysClock=11059200;         //±ØÐë¡£¶¨ÒåÏµÍ³¹¤×÷Ê±ÖÓÆµÂÊ(Hz)£¬ÓÃ»§±ØÐëÐÞ¸Ä³ÉÓëÊµ¼Ê¹¤×÷Æµ
+             -ÂÊ£¨ÏÂÔØÊ±Ñ¡ÔñµÄ£©Ò»ÖÂ
+  13          #ifdef _displayer_H_                          //ÏÔÊ¾Ä£¿éÑ¡ÓÃÊ±±ØÐë¡££¨ÊýÂë¹ÜÏÔÊ¾ÒëÂë±í£¬ÓÃ‘ô¿ÉÐÞ¸Ä¡¢Ôö¼ÓµÈ
+             -£© 
+  14          code char decode_table[]={0x3f,0x06,0x5b,0x4f,0x66,0x6d,0x7d,0x07,0x7f,0x6f,0x00,0x08,0x40,0x01, 0x41, 0x4
+             -8, 0x18,0x70, 0x21, 0x41,
+  15                          /* ÐòºÅ:   0   1    2    3    4     5    6    7   8    9   10    11   12   13    14     15    
+             -16     17   18    19*/
+  16                          /* ÏÔÊ¾:   0   1    2    3    4     5    6    7   8    9  (ÎÞ)   ÏÂ-  ÖÐ-  ÉÏ-  ÉÏÖÐ-  ÖÐÏ
+             -Â- |-ÏÂÒÆ  |-  |-ÉÏÒÆ  ÉÏ-ÖÐ-*/ 
+  17                                    0x48,     0x09,      0x49  ,0x6e , 0x3f, 0x3e,  0x38, 0X6d, 0x79 ,0x73, 0x77};
+  18                          /* ÐòºÅ:   20        21        22      23    24     25      26   27    28    29    30*/ 
+  19                          /* ÏÔÊ¾:  ÏÂ-ÖÐ-    ÉÏ-ÏÂ-     Èý-     y      O     U       L    S     E     P      A */
+  20                      
+  21          #endif
+  22          
+  23          code unsigned char  song[]={0x16,0x10,0x23,0x20,
+  24                                      0x22,0x20,0x16,0x10,
+  25                                      0x23,0x20,0x22,0x20};//ÒôÀÖ±àÂë
+  26          code unsigned char  sound[]={0x23 ,0x06 ,0x25 ,0x02 ,0x26 ,0x04 ,
+  27                                      0x25 ,0x02 ,0x26 ,0x02 ,0x31 ,0x08 ,
+  28                                      0x26 ,0x06 ,0x31 ,0x02 ,0x23 ,0x04 };//ÒôÀÖ±àÂë
+  29          unsigned short int xdata shoot[8]={17,10,10,10,10,10,10,10};//³õÊ¼»¯Éä»÷×´Ì¬
+  30          unsigned short int xdata target0[8]={10,10,10,10,10,10,10,10};//ÉÏ£¨±íÊ¾×îÉÏÃæµÄ¹ìµÀ£©
+  31          unsigned short int xdata target1[8]={10,10,10,10,10,10,10,10};//ÖÐ£¨±íÊ¾ÖÐ¼ä¹ìµÀ£©
+  32          unsigned short int xdata target2[8]={10,10,10,10,10,10,10,10};//ÏÂ£¨±íÊ¾×îÏÂÃæ¹ìµÀ£©
+  33          unsigned short int xdata bullet[3]={0,0,0};//´ú±íÈýÐÐ×Óµ¯
+  34          unsigned short int xdata num=0;//ÏûÃðÄ¿±êÊýÁ¿
+  35          unsigned char f=0;//±êÖ¾Î»£¬ÓÃÓÚ¸÷ÖÖ¹¦ÄÜµÄÇø·ÖºÍÊµÏÖ
+  36          unsigned short int xdata m=0;//·É»úµ±Ç°Î»ÖÃ
+  37          unsigned short int xdata a=1;//×Óµ¯ÔË¶¯¹ìµÀ
+  38          char buffer[2];//½ÓÊÕ´®¿ÚÍ¨ÐÅÊý¾Ý
+  39          char x=0;//ÓÃÓÚ×Ô¶¯µ¼º½¹¦ÄÜµÄÊ¹ÓÃ
+  40          
+  41          void init(){ //³õÊ¼»¯ÊýÂë¹ÜÏÔÊ¾
+  42   1        int i=0;
+  43   1        for(i=m+1;i<=7;i++){ //¸ù¾Ý²»Í¬¹ìµÀÇé¿ö£¨¼´µÐÈËºÍÄ¿±êµÄÎ»ÖÃ£©À´¸Ä±äÊýÂë¹ÜµÄÏÔÊ¾£¬±ÜÃâÏÔÊ¾»ìÂÒ
+  44   2        if(target0[i]==13){
+  45   3          if(target1[i]==12){ 
+  46   4             if(target2[i]==10) shoot[i]=19;//ÉÏ-ÖÐ-
+  47   4             else shoot[i]=22;//Èý -
+  48   4          }
+  49   3          else if(target2[i]==11) shoot[i]=21;//ÉÏ-ÏÂ-
+C51 COMPILER V9.51   MAIN                                                                  09/07/2023 15:04:15 PAGE 2   
+
+  50   3          else shoot[i]=13;//ÉÏ-
+  51   3        }
+  52   2        else{ 
+  53   3        if(target1[i]==12){ 
+  54   4           if(target2[i]==11) shoot[i]=20; //ÏÂ-ÖÐ-
+  55   4           else shoot[i]=12;//ÖÐ-
+  56   4          }
+  57   3         else if(target2[i]==11) shoot[i]=11;//ÏÂ-  
+  58   3         else shoot[i]=10;//ÎÞ
+  59   3        }
+  60   2      }
+  61   1      
+  62   1      }
+  63          void myadc_callback()//µ¼º½¼ü¹¦ÄÜ
+  64          { 
+  65   1        if( GetAdcNavAct(enumAdcNavKeyUp) == enumKeyPress ){//ÉÏ°´£¬ÉÏÒÆ
+  66   2          if(shoot[m]<18) shoot[m]++;
+  67   2        }
+  68   1        if( GetAdcNavAct(enumAdcNavKeyDown) == enumKeyPress ){//ÏÂ°´£¬ÏÂÒÆ
+  69   2          if(shoot[m]>16) shoot[m]--;
+  70   2        }
+  71   1        if( GetAdcNavAct(enumAdcNavKeyCenter) == enumKeyPress ){//ÖÐÐÄ°´£¬Éä»÷
+  72   2          if(shoot[m]==16) bullet[0]=11;
+  73   2          if(shoot[m]==17) bullet[1]=12;
+  74   2          if(shoot[m]==18) bullet[2]=13;
+  75   2        }
+  76   1        if( GetAdcNavAct(enumAdcNavKeyRight) == enumKeyPress ){ //ÓÒ°´£¬ÓÒÒÆ
+  77   2          if(m<3) {shoot[m+1]=shoot[m],shoot[m++]=10;a=m+1;}
+  78   2        }
+  79   1        if( GetAdcNavAct(enumAdcNavKeyLeft) == enumKeyPress ){ //×ó°´£¬×óÒÆ
+  80   2          if(m>0) {shoot[m-1]=shoot[m],shoot[m--]=10;a=m+1;}
+  81   2        }
+  82   1        if( GetAdcNavAct(enumAdcNavKey3) == enumKeyPress )//°´ÏÂk3¿ªÆô¡±Íâ¹Ò¡±×Ô¶¯¾«×¼´ò»÷
+  83   1        {
+  84   2          if(x==0) x=1;
+  85   2          else x=0;
+  86   2        }
+  87   1      }
+  88          
+  89          void my_auto(){ //×Ô¶¯µ¼º½
+  90   1         int i=0;
+  91   1         for(i=1;i<8;i++){ //¸ù¾ÝÄ¿±êÎ»ÖÃÒÆ¶¯ºÍ·¢Éä×Óµ¯
+  92   2         if(target0[i]==13 && x==1){
+  93   3           if(shoot[m]<18) shoot[m]++;
+  94   3           if(shoot[m]==18) {bullet[2]=13;x=2;}
+  95   3            
+  96   3          }
+  97   2         else if(target1[i]==12 && x==1){
+  98   3            shoot[m]=17;
+  99   3            bullet[1]=12;
+ 100   3            x=2;
+ 101   3          }
+ 102   2         else if(target2[i]==11 && x==1){
+ 103   3            if(shoot[m]>16) shoot[m]--;
+ 104   3            if(shoot[m]==16) {bullet[0]=11;x=2;}
+ 105   3          }
+ 106   2          }
+ 107   1      }
+ 108          
+ 109          void myKey_callback() //°´¼ü¹¦ÄÜ
+ 110          { 
+ 111   1        char k1=0,k2=0;
+C51 COMPILER V9.51   MAIN                                                                  09/07/2023 15:04:15 PAGE 3   
+
+ 112   1        k1=GetKeyAct(enumKey1);//µÃµ½K1µÄ¶¯×÷
+ 113   1        if(f!=2){
+ 114   2        if( k1 == enumKeyPress )//°´ÏÂ
+ 115   2        {
+ 116   3          f=1;
+ 117   3          Seg7Print(10,10,10,10,10,num/100%10,num/10%10,num%10);//ÏÔÊ¾³É¼¨
+ 118   3        }//ËÉ¿ª
+ 119   2        else if( k1 == enumKeyRelease ){ 
+ 120   3         f=0;
+ 121   3        }
+ 122   2      
+ 123   2        k2=GetKeyAct(enumKey2);
+ 124   2         if( k2 == enumKeyPress )//°´ÏÂk2ÔÝÍ£
+ 125   2        {
+ 126   3          if(f!=3) f=3;
+ 127   3          else f=0;
+ 128   3        }
+ 129   2      }
+ 130   1      }
+ 131          
+ 132          //Ä£Äâ×Óµ¯·¢ÉäÒÆ¶¯¹ìµÀ£¬ÊµÏÖ´ò»÷ÅÐ¶ÏºÍÒôÐ§ºÍ³É¼¨¼ÇÂ¼ÒÔ¼°µ÷ÓÃmy_auto()º¯Êý
+ 133          void my100mS_callback(){ 
+ 134   1        int k=1;              
+ 135   1        if(f==0){
+ 136   2        init();
+ 137   2        if(bullet[0]==11) { //ÏÂ
+ 138   3        
+ 139   3          for(k=m+1;k<=7;k++){
+ 140   4          if(target2[k]==11&&a==k){//»÷ÖÐÅÐ¶Ï
+ 141   5          num++;//³É¼¨¼ÓÒ»
+ 142   5          target2[a]=10;
+ 143   5          SetBeep(1000,20);//»÷ÖÐÒôÐ§
+ 144   5          goto f0;
+ 145   5          }
+ 146   4          }
+ 147   3          //Ä£Äâ×Óµ¯·¢ÉäÒÆ¶¯¹ìµÀ
+ 148   3          if(shoot[a]==19) shoot[a++]=22;//ÉÏÖÐÏÂ
+ 149   3          else if(shoot[a]==13) shoot[a++]=21;//ÉÏÏÂ
+ 150   3          else if(shoot[a]==12) shoot[a++]=20;//ÏÂÖÐ
+ 151   3          else shoot[a++]=bullet[0];
+ 152   3          
+ 153   3          Seg7Print(shoot[0],shoot[1],shoot[2],shoot[3],shoot[4],shoot[5],shoot[6],shoot[7]); 
+ 154   3          if(a>=8) { f0: a=m+1;   bullet[0]=0;  init(); if(bullet[0]==0 && x==2) x=1;}
+ 155   3         }
+ 156   2        if(bullet[1]==12) { //ÖÐ
+ 157   3          for(k=m+1;k<=7;k++){
+ 158   4          if(target1[k]==12&&a==k){//»÷ÖÐÅÐ¶Ï
+ 159   5          num++;//³É¼¨¼ÓÒ»
+ 160   5          target1[a]=10;
+ 161   5          SetBeep(1000,20);//»÷ÖÐÒôÐ§
+ 162   5          goto f1;
+ 163   5          }
+ 164   4          }
+ 165   3          if(shoot[a]==21) shoot[a++]=22;//ÉÏÖÐÏÂ
+ 166   3          else if(shoot[a]==13) shoot[a++]=19;//ÉÏÖÐ
+ 167   3          else if(shoot[a]==11) shoot[a++]=20;//ÏÂÖÐ
+ 168   3          else shoot[a++]=bullet[1];
+ 169   3          
+ 170   3          Seg7Print(shoot[0],shoot[1],shoot[2],shoot[3],shoot[4],shoot[5],shoot[6],shoot[7]); 
+ 171   3          if(a>=8) {f1: a=m+1;  bullet[1]=0; init();if(bullet[1]==0 && x==2) x=1;}
+ 172   3         }
+ 173   2         if(bullet[2]==13) { //ÉÏ
+C51 COMPILER V9.51   MAIN                                                                  09/07/2023 15:04:15 PAGE 4   
+
+ 174   3          for(k=m+1;k<=7;k++){
+ 175   4          if(target0[k]==13&&a==k){//»÷ÖÐÅÐ¶Ï
+ 176   5          num++;//³É¼¨¼ÓÒ»
+ 177   5          target0[a]=10;
+ 178   5          SetBeep(1000,20);//»÷ÖÐÒôÐ§
+ 179   5          goto f2;
+ 180   5          }
+ 181   4          }
+ 182   3           
+ 183   3          if(shoot[a]==20) shoot[a++]=22;//ÉÏÖÐÏÂ
+ 184   3          else if(shoot[a]==12) shoot[a++]=19;//ÉÏÖÐ
+ 185   3          else if(shoot[a]==11) shoot[a++]=21;//ÏÂÉÏ
+ 186   3          else shoot[a++]=bullet[2];
+ 187   3          
+ 188   3          Seg7Print(shoot[0],shoot[1],shoot[2],shoot[3],shoot[4],shoot[5],shoot[6],shoot[7]); 
+ 189   3           if(a>=8) { 
+ 190   4            f2: a=m+1;  bullet[2]=0;  init(); if(bullet[2]==0 && x==2) x=1;}
+ 191   3         }
+ 192   2         }
+ 193   1         if(x==1){
+ 194   2          my_auto();
+ 195   2         }
+ 196   1      }
+ 197          
+ 198          char p=0;//±êÖ¾Î»
+ 199          char r=1;//±êÖ¾Î»
+ 200          unsigned char s=0x80;//ÓÃÓÚledµÆÏÔÊ¾
+ 201          int e=0;//±êÖ¾Î»
+ 202          void my10mS_callback() //Ö÷ÒªÓÃÓÚÓÎÏ·ÏÔÊ¾
+ 203          { 
+ 204   1        if(f==0){ //ÓÎÏ·ÏÔÊ¾
+ 205   2        Seg7Print(shoot[0],shoot[1],shoot[2],shoot[3],shoot[4],shoot[5],shoot[6],shoot[7]);
+ 206   2        if(e++%7==0)
+ 207   2        if(r==1){
+ 208   3        if(bullet[0]==11 || bullet[1]==12 || bullet[2]==13) r=2;}
+ 209   2        else{
+ 210   3        if(s==0x0) {s=0x80;r=1;}
+ 211   3        else s=s>>1;
+ 212   3        LedPrint(s); //ledµÆÏÔÊ¾
+ 213   3        }
+ 214   2        }
+ 215   1        if(f==2) {//ÓÎÏ·Ê§°Ü£¬ÏÔÊ¾¡±YOU LOSE¡°
+ 216   2        Seg7Print(23,24,25,10,26,24,27,28); 
+ 217   2        if(p==0) {
+ 218   3        SetBeep(1000,40);//·äÃùÆ÷·¢³öÉùÏì
+ 219   3        p=1;
+ 220   3        }}
+ 221   1        
+ 222   1        if(num>=25){ //ÏÔÊ¾¡±YOU PASS¡°±íÊ¾ÓÎÏ·³É¹¦,ºÍ·¢³öÒôÐ§
+ 223   2        Seg7Print(23,24,25,10,29,30,27,27);
+ 224   2        f=4;
+ 225   2        if(p==0){
+ 226   3        SetMusic(90,0xFA,sound,sizeof(sound),enumMscNull);
+ 227   3        SetPlayerMode(enumModePlay);
+ 228   3        p=1;}
+ 229   2        }
+ 230   1      }
+ 231          
+ 232          unsigned short int Rop;//±£´æ¹âÕÕÖµ×÷ÎªËæ»úÊýÖÖ×Ó
+ 233          void Myadc()
+ 234          { 
+ 235   1        struct_ADC adc ;
+C51 COMPILER V9.51   MAIN                                                                  09/07/2023 15:04:15 PAGE 5   
+
+ 236   1        adc = GetADC();
+ 237   1        Rop=adc.Rop;
+ 238   1      }
+ 239          
+ 240          short int t=0;
+ 241          void my1S_callback() 
+ 242          { short int b=1;
+ 243   1        srand(Rop);
+ 244   1        if(f==0){ 
+ 245   2        if(t++%2==0){ //Ëæ»úÄ¿±ê²úÉú
+ 246   3        int rd1=rand()%7;
+ 247   3        int rd2=rand()%3+5;
+ 248   3        switch(rd1){
+ 249   4        case 0:
+ 250   4          target0[rd2]=13;
+ 251   4          break;
+ 252   4        case 1:
+ 253   4          target1[rd2]=12;
+ 254   4          break;
+ 255   4        case 2:
+ 256   4          target2[rd2]=11;
+ 257   4          break;
+ 258   4        case 3:
+ 259   4          target2[rd2]=11;
+ 260   4          target0[rd2]=13;
+ 261   4          break;
+ 262   4        case 4:
+ 263   4          target1[rd2]=12;
+ 264   4          target0[rd2]=13;
+ 265   4          break;
+ 266   4        case 5:
+ 267   4          target1[rd2]=12;
+ 268   4          target2[rd2]=11;
+ 269   4          break;
+ 270   4        case 6:
+ 271   4          target0[rd2]=13;
+ 272   4          target1[rd2]=12;
+ 273   4          target2[rd2]=11;
+ 274   4          break;
+ 275   4        }
+ 276   3        }
+ 277   2        if(t%2==0){ //Ä¿±êÒÆ¶¯
+ 278   3        for(b=m;b<7;b++){ 
+ 279   4          target0[b]=target0[b+1]; 
+ 280   4          target1[b]=target1[b+1];
+ 281   4          target2[b]=target2[b+1];
+ 282   4        }target0[b]=10;target1[b]=10;target2[b]=10;
+ 283   3        }
+ 284   2        //ÅÐ¶¨·É»úÓëÄ¿±êÊÇ·ñÏàÓö
+ 285   2        if(target0[m]!=10 || target1[m]!=10 || target2[m]!=10 ) f=2; 
+ 286   2      }
+ 287   1      }
+ 288          
+ 289          void uart1rxd_callback(){
+ 290   1        if(buffer[0] == 0x1 ){  //ÉÏÒÆ
+ 291   2          if(shoot[m]<18) shoot[m]++;
+ 292   2        }
+ 293   1        
+ 294   1        if(buffer[0] == 0x2 ){  //ÏÂÒÆ
+ 295   2          if(shoot[m]>16) shoot[m]--;
+ 296   2        }
+ 297   1        if( buffer[0] == 0x3 ){//Éä»÷
+C51 COMPILER V9.51   MAIN                                                                  09/07/2023 15:04:15 PAGE 6   
+
+ 298   2          if(shoot[m]==16) bullet[0]=11;
+ 299   2          if(shoot[m]==17) bullet[1]=12;
+ 300   2          if(shoot[m]==18) bullet[2]=13;
+ 301   2        }
+ 302   1        if( buffer[0] == 0x4 ){ //ÓÒÒÆ
+ 303   2          if(m<3) {shoot[m+1]=shoot[m],shoot[m++]=10;a=m+1;}
+ 304   2        }
+ 305   1        if( buffer[0] == 0x5 ){ //×óÒÆ
+ 306   2          if(m>0) {shoot[m-1]=shoot[m],shoot[m--]=10;a=m+1;}
+ 307   2        }
+ 308   1        if(f!=2){
+ 309   2        if( buffer[0] == 0x6 ){ //ÔÝÍ£
+ 310   3          if(f!=3) f=3;
+ 311   3          else f=0;
+ 312   3        }
+ 313   2        else if( buffer[0] == 0x7 ){ //ÏÔÊ¾³É¼¨
+ 314   3          if(f!=1) {f=1;Seg7Print(10,10,10,10,10,num/100%10,num/10%10,num%10);}
+ 315   3          else f=0;
+ 316   3        }
+ 317   2        }
+ 318   1        if( buffer[0] == 0x8 ){ //×Ô¶¯µ¼º½
+ 319   2          if(x==0) x=1;
+ 320   2          else x=0;
+ 321   2        }
+ 322   1      }
+ 323          
+ 324          
+ 325          void main() 
+ 326          { DisplayerInit();
+ 327   1        KeyInit();
+ 328   1        BeepInit();
+ 329   1        MusicPlayerInit();
+ 330   1        AdcInit(ADCexpEXT);
+ 331   1        Uart1Init(2400);
+ 332   1        LedPrint(0);
+ 333   1        SetUart1Rxd(buffer, 2, buffer, 1);//ÉèÖÃ½ÓÊÕÌõ¼þ
+ 334   1        SetPlayerMode(enumModePlay);
+ 335   1        SetMusic(200,0xFA,song,sizeof(song),enumMscNull);
+ 336   1        SetEventCallBack(enumEventUart1Rxd, uart1rxd_callback);
+ 337   1        SetEventCallBack(enumEventKey, myKey_callback);
+ 338   1        SetEventCallBack(enumEventNav,myadc_callback);
+ 339   1        SetEventCallBack(enumEventXADC,Myadc);
+ 340   1        SetEventCallBack(enumEventSys10mS,my10mS_callback);
+ 341   1        SetEventCallBack(enumEventSys100mS,my100mS_callback);
+ 342   1        SetEventCallBack(enumEventSys1S,my1S_callback);
+ 343   1        SetDisplayerArea(0,7);  
+ 344   1        init();
+ 345   1        Seg7Print(shoot[0],shoot[1],shoot[2],shoot[3],shoot[4],shoot[5],shoot[6],shoot[7]); 
+ 346   1        MySTC_Init();     
+ 347   1        while(1)              
+ 348   1          { MySTC_OS();    
+ 349   2          }              
+ 350   1      }                 
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =   4482    ----
+   CONSTANT SIZE    =     65    ----
+   XDATA SIZE       =     76    ----
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =     13      20
+   IDATA SIZE       =   ----    ----
+C51 COMPILER V9.51   MAIN                                                                  09/07/2023 15:04:15 PAGE 7   
+
+   BIT SIZE         =   ----    ----
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)

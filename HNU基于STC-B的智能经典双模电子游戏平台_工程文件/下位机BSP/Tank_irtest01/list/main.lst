@@ -1,0 +1,269 @@
+C51 COMPILER V9.51   MAIN                                                                  09/03/2024 10:33:26 PAGE 1   
+
+
+C51 COMPILER V9.51, COMPILATION OF MODULE MAIN
+OBJECT MODULE PLACED IN .\output\main.obj
+COMPILER INVOKED BY: D:\Keil\C51\BIN\C51.EXE source\main.c BROWSE INCDIR(.\inc) DEBUG OBJECTEXTEND PRINT(.\list\main.lst
+                    -) TABS(2) OBJECT(.\output\main.obj)
+
+line level    source
+
+   1          #include "STC15F2K60S2.H"
+   2          #include "sys.H"
+   3          #include "adc.h"   
+   4          #include "displayer.H"
+   5          #include "key.H"
+   6          #include "uart1.h"  
+   7          #include "beep.h"// ?????????
+   8          #include "hall.h"
+   9          #include "vib.h"
+  10          #include "IR.h"
+  11          #include "FM_radio.h"
+  12          
+  13          code unsigned long SysClock = 11059200L; // ????????
+  14          
+  15          #ifdef _displayer_H_                         
+  16          code char decode_table[] = {
+  17              0x3f, 0x06, 0x5b, 0x4f, 0x66, 
+  18              0x6d, 0x7d, 0x07, 0x7f, 0x6f, 
+  19              0x00, 0x08, 0x40, 0x01, 0x76, 0x38
+  20          };   
+  21          #endif
+  22           
+  23          unsigned char temp[] = {0xc0, 0x60, 0x30, 0x18, 0x0c, 0x06, 0x03};  // LED pattern
+  24          int i = 3;  // Start index
+  25          unsigned char key_press_flag = 0;  // Key press flag for debouncing
+  26          
+  27          // ???????PC
+  28          void send_key_signal(unsigned char key) {
+  29   1          SBUF = key;  // ????????????
+  30   1          while (!TI); // ??????
+  31   1          TI = 0;      // ??????
+  32   1      }
+  33          
+  34          
+  35          // ??????
+  36          void mydh_callback() {
+  37   1          // ?????????
+  38   1          if (GetAdcNavAct(enumAdcNavKeyLeft) == enumKeyPress) {
+  39   2              
+  40   2                  key_press_flag = 1;  // ????
+  41   2                  Seg7Print(3, 0, 0, 0, 0, 0, 0, 0);  // ???????3
+  42   2                  send_key_signal(3);  // ??????
+  43   2              
+  44   2          }
+  45   1          // ?????????
+  46   1          else if (GetAdcNavAct(enumAdcNavKeyRight) == enumKeyPress) {
+  47   2              
+  48   2                 
+  49   2                  key_press_flag = 1;  // ????
+  50   2                  Seg7Print(4, 0, 0, 0, 0, 0, 0, 0);  // ???????4
+  51   2                  send_key_signal(4);  // ??????
+  52   2              
+  53   2          }
+  54   1          // ?????????
+C51 COMPILER V9.51   MAIN                                                                  09/03/2024 10:33:26 PAGE 2   
+
+  55   1          else if (GetAdcNavAct(enumAdcNavKeyUp) == enumKeyPress) {
+  56   2              key_press_flag = 1;  // ????
+  57   2              Seg7Print(1, 0, 0, 0, 0, 0, 0, 0);  // ???????1
+  58   2              send_key_signal(1);  // ??????
+  59   2          }
+  60   1          // ?????????
+  61   1          else if (GetAdcNavAct(enumAdcNavKeyDown) == enumKeyPress) {
+  62   2              key_press_flag = 1;  // ????
+  63   2              Seg7Print(2, 0, 0, 0, 0, 0, 0, 0);  // ???????2
+  64   2              send_key_signal(2);  // ??????
+  65   2          }
+  66   1          // Center/Hall/Vib ==> tank stop
+  67   1              else if ((GetAdcNavAct(enumAdcNavKeyCenter) == enumKeyPress)||(GetHallAct() == enumHallGetClose) |
+             -|(GetVibAct()==enumVibQuake)) {
+  68   2              key_press_flag = 1;  // ????
+  69   2              Seg7Print(5, 0, 0, 0, 0, 0, 0, 0);  // ???????5
+  70   2              send_key_signal(5);  // ??????
+  71   2          }
+  72   1          else if (GetKeyAct(enumKey1) == enumKeyPress) {
+  73   2              key_press_flag = 1;  // ????
+  74   2              Seg7Print(6, 0, 0, 0, 0, 0, 0, 0);  // ???????5
+  75   2              send_key_signal(6);  // ??????
+  76   2          }
+  77   1      
+  78   1          // ????????????
+  79   1          /*if (key_press_flag) {
+  80   1              LedPrint(temp[i]);  // ??LED??
+  81   1              key_press_flag = 0;  // ????
+  82   1          }*/
+  83   1      }
+  84          
+  85          char rxd[1];
+  86          char R[1];
+  87          char bee[1];
+  88          char buf1[1]={0x03};
+  89          char buf2[1]={0x04};
+  90          char buf3[1]={0x01};
+  91          char buf4[1]={0x02};
+  92          char buf5[1]={0x05};
+  93          char buf6[1]={0x06};
+  94          //char matchhead[2]={0xaa,0x55};
+  95           
+  96          void uart1rxd_callback();
+  97          void ir_callback();
+  98          void key_callback();
+  99          //void beep_callback();
+ 100          struct_FMRadio radio = {975,6,1,0,0};
+ 101          void main() {
+ 102   1            HallInit(); 
+ 103   1            VibInit(); 
+ 104   1          DisplayerInit();
+ 105   1          KeyInit();
+ 106   1        
+ 107   1         
+ 108   1          FMRadioInit(radio);
+ 109   1      
+ 110   1            IrInit(NEC_R05d);
+ 111   1            BeepInit();
+ 112   1          AdcInit(ADCexpEXT);
+ 113   1          SetDisplayerArea(0, 7);
+ 114   1          
+ 115   1          Uart1Init(9600);  // ?????,????9600
+C51 COMPILER V9.51   MAIN                                                                  09/03/2024 10:33:26 PAGE 3   
+
+ 116   1          
+ 117   1          SetUart1Rxd(rxd, 1, 0, 0);
+ 118   1            SetIrRxd(R,1);
+ 119   1          
+ 120   1            bee[0]=rxd[0];
+ 121   1              Seg7Print(10,10,10,10,10,10,10,10);
+ 122   1          LedPrint(0);
+ 123   1          
+ 124   1          
+ 125   1          Seg7Print(0, 0, 0, 0, 0, 0, 0, 0);  // ??????
+ 126   1          SetEventCallBack(enumEventXADC, mydh_callback);
+ 127   1          SetEventCallBack(enumEventUart1Rxd, uart1rxd_callback);
+ 128   1            SetEventCallBack(enumEventIrRxd,ir_callback);
+ 129   1            //key -->ADC
+ 130   1            SetEventCallBack(enumEventXADC,key_callback);
+ 131   1      
+ 132   1          MySTC_Init();
+ 133   1          
+ 134   1          while (1) {
+ 135   2              MySTC_OS();  // ???????
+ 136   2          }
+ 137   1      }
+ 138          void uart1rxd_callback(){
+ 139   1          LedPrint(rxd[0]);
+ 140   1            if ((rxd[0] == 07 || rxd[0] == 03 || rxd[0] == 01) && bee[0] != rxd[0]) {
+ 141   2              SetBeep(1000, 20);
+ 142   2          }
+ 143   1          if (rxd[0] == 00 && bee[0] != rxd[0]) {
+ 144   2              SetBeep(200, 100);
+ 145   2          }
+ 146   1                  
+ 147   1              bee[0]=rxd[0];
+ 148   1              
+ 149   1          return;
+ 150   1      }
+ 151          
+ 152          void ir_callback(){
+ 153   1            if (R[0]==3){
+ 154   2            key_press_flag = 1;  // ????
+ 155   2                  Seg7Print(3, 0, 0, 0, 0, 0, 0, 0);  // ???????3
+ 156   2                  send_key_signal(3);  // ??????
+ 157   2              
+ 158   2          }
+ 159   1          // ?????????
+ 160   1          else if (R[0]==4) {           
+ 161   2                  key_press_flag = 1;  // ????
+ 162   2                  Seg7Print(4, 0, 0, 0, 0, 0, 0, 0);  // ???????4
+ 163   2                  send_key_signal(4);  // ??????
+ 164   2              
+ 165   2          }
+ 166   1          // ?????????
+ 167   1          else if (R[0]==1) {
+ 168   2              key_press_flag = 1;  // ????
+ 169   2              Seg7Print(1, 0, 0, 0, 0, 0, 0, 0);  // ???????1
+ 170   2              send_key_signal(1);  // ??????
+ 171   2          }
+ 172   1          // ?????????
+ 173   1          else if (R[0]==2) {
+ 174   2              key_press_flag = 1;  // ????
+ 175   2              Seg7Print(2, 0, 0, 0, 0, 0, 0, 0);  // ???????2
+ 176   2              send_key_signal(2);  // ??????
+ 177   2          }
+C51 COMPILER V9.51   MAIN                                                                  09/03/2024 10:33:26 PAGE 4   
+
+ 178   1          // ?????????
+ 179   1              else if (R[0]==5) {
+ 180   2              key_press_flag = 1;  // ????
+ 181   2              Seg7Print(5, 0, 0, 0, 0, 0, 0, 0);  // ???????5
+ 182   2              send_key_signal(5);  // ??????
+ 183   2          }
+ 184   1          else if (R[0]==6) {
+ 185   2              key_press_flag = 1;  // ????
+ 186   2              Seg7Print(6, 0, 0, 0, 0, 0, 0, 0);  // ???????5
+ 187   2              send_key_signal(6);  // ??????
+ 188   2          }
+ 189   1          }
+ 190          
+ 191          void key_callback(){
+ 192   1          if(GetAdcNavAct(enumAdcNavKeyLeft) == enumKeyPress)
+ 193   1          {
+ 194   2            send_key_signal(3);  // ??????
+ 195   2            IrPrint(buf1, 1);
+ 196   2          }
+ 197   1              
+ 198   1          else if(GetAdcNavAct(enumAdcNavKeyRight) == enumKeyPress)
+ 199   1          {
+ 200   2            IrPrint(buf2, 1);
+ 201   2            send_key_signal(4);  // ??????
+ 202   2          }
+ 203   1              
+ 204   1          else if(GetAdcNavAct(enumAdcNavKeyUp) == enumKeyPress)
+ 205   1          {
+ 206   2            IrPrint(buf3, 1);
+ 207   2            send_key_signal(1);  // ??????
+ 208   2          }
+ 209   1              
+ 210   1          else if(GetAdcNavAct(enumAdcNavKeyDown) == enumKeyPress)
+ 211   1          {
+ 212   2             send_key_signal(2);  // ??????
+ 213   2            IrPrint(buf4, 1);
+ 214   2            
+ 215   2          }
+ 216   1              
+ 217   1          else if(GetKeyAct(enumKey2) == enumKeyPress)
+ 218   1          {
+ 219   2              IrPrint(buf5, 1);
+ 220   2              send_key_signal(5);  // ??????
+ 221   2          }
+ 222   1              
+ 223   1          else if(GetKeyAct(enumKey1) == enumKeyPress)
+ 224   1          {
+ 225   2             IrPrint(buf6, 1);
+ 226   2              send_key_signal(6);  // ??????
+ 227   2          }
+ 228   1          else if ((GetAdcNavAct(enumAdcNavKeyCenter) == enumKeyPress)||(GetHallAct() == enumHallGetClose) ||(GetV
+             -ibAct()==enumVibQuake)) {
+ 229   2              
+ 230   2              Seg7Print(5, 0, 0, 0, 0, 0, 0, 0);  // ???????5
+ 231   2              send_key_signal(5);  // ??????
+ 232   2              IrPrint(buf5, 1);
+ 233   2          }
+ 234   1              
+ 235   1      }
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+C51 COMPILER V9.51   MAIN                                                                  09/03/2024 10:33:26 PAGE 5   
+
+   CODE SIZE        =    872    ----
+   CONSTANT SIZE    =     20    ----
+   XDATA SIZE       =   ----    ----
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =     25    ----
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =   ----    ----
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)
